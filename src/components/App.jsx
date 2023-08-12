@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 import { fetchQuery } from '../API/Api';
 import Searchbar from './Searchbar/Searchbar';
 import ImageGallery from './ImageGallery/ImageGallery';
@@ -7,101 +7,96 @@ import Modal from './Modal/Modal';
 import Button from './Button/Button';
 import css from './App.module.css';
 
-class App extends Component {
-  state = {
-    query: '',
-    images: [],
-    selectedImage: null,
-    page: 1,
-    error: null,
-    isLoader: false,
-    showModal: false,
-  };
+export default function App() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [images, setImages] = useState([]);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [page, setPage] = useState(1);
+  const [error, setError] = useState(null);
+  const [isLoader, setIsLoader] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
-  async componentDidUpdate(prevProps, prevState) {
-    const { query, page } = this.state;
-    const prevQuery = prevState.query;
-    const prevPage = prevState.page;
-    if (query !== prevQuery || page !== prevPage) {
+  useEffect(() => {
+    if (searchQuery === '') {
+      return;
+    }
+
+    async function fetchHandle() {
       try {
-        this.setState({ isLoader: true });
-        const data = await fetchQuery(query, page);
+        setIsLoader(true);
+        const data = await fetchQuery(searchQuery, page);
         if (data.total === 0) {
           return alert(
             'Sorry, but we did not find any images for your request. Please enter a valid query.'
           );
         }
         if (page === 1) {
-          this.setState({ images: data.hits });
+          setImages(data.hits);
         } else {
-          this.setState(prevState => ({
-            images: [...prevState.images, ...data.hits],
-          }));
+          setImages(prevImages => [...prevImages, ...data.hits]);
         }
-        this.setState({ page });
+        setPage(page);
       } catch (error) {
-        this.setState({ error });
+        setError(error);
         console.log(error);
       } finally {
-        this.setState({ isLoader: false });
+        setIsLoader(false);
       }
     }
-  }
 
-  handleFormSubmit = query => {
-    if (this.state.query === query) {
+    fetchHandle();
+  }, [searchQuery, page]);
+
+  const handleFormSubmit = query => {
+    if (searchQuery === query) {
       return;
     }
-    this.setState({ query, images: [], page: 1 });
+    setSearchQuery(query);
+    setImages([]);
+    setPage(1);
   };
 
-  openModal = image => {
-    this.setState({ showModal: true, selectedImage: image });
+  const openModal = image => {
+    setShowModal(true);
+    setSelectedImage(image);
   };
 
-  closeModal = () => {
-    this.setState({ showModal: false, selectedImage: null });
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedImage(null);
   };
 
-  handleLoadMore = () => {
-    const { page } = this.state;
-    const nextPage = page + 1;
-    this.setState({ page: nextPage });
+  const handleLoadMore = () => {
+    setPage(page + 1);
   };
 
-  render() {
-    const { images, isLoader, error, selectedImage, showModal } = this.state;
+  return (
+    <div className={css.App}>
+      <Searchbar onSubmit={handleFormSubmit} />
+      {error && (
+        <div>
+          <p>Sorry, but we have a fetch error</p>
+        </div>
+      )}
 
-    return (
-      <div className={css.App}>
-        <Searchbar onSubmit={this.handleFormSubmit} />
-        {error && (
-          <div>
-            <p>Sorry, but we have a fetch error</p>
-          </div>
-        )}
+      {images && (
+        <>
+          <ImageGallery gallery={images} onModal={openModal} />
+          {showModal && selectedImage && (
+            <Modal
+              url={selectedImage.largeImageURL}
+              tags={selectedImage.tags}
+              onClose={closeModal}
+            />
+          )}
+        </>
+      )}
 
-        {images && (
-          <>
-            <ImageGallery gallery={images} onModal={this.openModal} />
-            {showModal && selectedImage && (
-              <Modal
-                url={selectedImage.largeImageURL}
-                tags={selectedImage.tags}
-                onClose={this.closeModal}
-              />
-            )}
-          </>
-        )}
+      {images.length > 0 && images.length % 12 === 0 && (
+        <Button onClick={handleLoadMore} />
+      )}
 
-        {images.length > 0 && images.length % 12 === 0 && (
-          <Button onClick={this.handleLoadMore} />
-        )}
-
-        {isLoader && <Loader />}
-      </div>
-    );
-  }
+      {isLoader && <Loader />}
+    </div>
+  );
 }
-
-export default App;
